@@ -1,0 +1,126 @@
+[root@libo gcc-9.1.0]# cat /etc/redhat-release
+CentOS Linux release 7.7.1908 (Core)
+
+[root@libo gcc-9.1.0]# uname -a
+Linux libo 3.10.0-1062.el7.x86_64 #1 SMP Wed Aug 7 18:08:02 UTC 2019 x86_64 x86_64 x86_64 GNU/Linux
+
+# yum install -y perl
+
+yum install -y wget
+yum install -y bzip2
+# yum install -y xz
+yum install -y m4
+yum install -y gcc
+yum install -y gcc-c++
+
+
+mkdir -p /opt/tool && cd /opt/tool
+
+# GCC的依赖库间还互有依赖：mpfr依赖gmp、mpc依赖gmp和mpfr，GCC的编译安装顺序为：
+# 1) m4（如果需要）
+# 2) gmp
+# 3) mpfr
+# 4) mpc
+# 5) GCC
+# 为了不污染已有的编译和运行环境，将GCC及依赖库均安装到/usr/local目录，并且最好以root用户完成下述所有操作。
+
+# gcc版本下载:https://gcc.gnu.org/mirrors.html 选择最近的镜像 通常是Japan
+# 安装依赖环境
+# ./contrib/download_prerequisites
+# 
+# 如果网络原因编译失败,那么手动进行环境编译
+# 
+# :以下三步
+# 
+# 1.gmp http://ftp.gnu.org/gnu/gmp/
+# 2.mpfr http://ftp.gnu.org/gnu/mpfr/
+# 3.mpc http://ftp.gnu.org/gnu/mpc/
+# 
+# 截至 AM 9:08 2019-09-22 
+wget http://ftp.gnu.org/gnu/gmp/gmp-6.1.2.tar.xz
+wget http://ftp.gnu.org/gnu/mpfr/mpfr-4.0.2.tar.xz
+wget http://ftp.gnu.org/gnu/mpc/mpc-1.1.0.tar.gz
+
+
+#编译安装 gmp-6.1.2:
+cd /opt/tool
+tar xf gmp-6.1.2.tar.xz
+cd gmp-6.1.2
+./configure --prefix=/usr/local/gmp-6.1.2
+make
+make install
+ln -s /usr/local/gmp-6.1.2 /usr/local/gmp
+
+#编译安装 mpfr-4.0.2:
+cd /opt/tool
+tar xf mpfr-4.0.2.tar.xz
+cd mpfr-4.0.2
+./configure --prefix=/usr/local/mpfr-4.0.2 --with-gmp=/usr/local/gmp
+make
+make install
+ln -s /usr/local/mpfr-4.0.2 /usr/local/mpfr
+
+#编译安装 mpc-1.1.0 ：
+cd /opt/tool
+tar xzf mpc-1.1.0.tar.gz
+cd mpc-1.1.0
+./configure --prefix=/usr/local/mpc-1.1.0 --with-gmp=/usr/local/gmp --with-mpfr=/usr/local/mpfr
+make
+make install
+ln -s /usr/local/mpc-1.1.0 /usr/local/mpc
+
+#设置LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/usr/local/gmp/lib:/usr/local/mpfr/lib:/usr/local/mpc/lib:$LD_LIBRARY_PATH
+#如以上没有采用软连接，则需要 直接在/etc/profile最后添加 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/mpc-1.1.0/lib:/usr/local/gmp-6.1.2/lib:/usr/local/mpfr-4.0.2/lib
+#但这样依赖就达不到避免污染环境的需求了
+
+
+#编译安装gcc9.1.0
+cd /opt/tool
+tar xf gcc-9.1.0.tar.gz
+cd gcc-9.1.0
+./configure --prefix=/usr/local/gcc-9.1.0 --with-mpfr=/usr/local/mpfr --with-gmp=/usr/local/gmp --with-mpc=/usr/local/mpc --enable-checking=release --enable-languages=c,c++ --disable-multilib
+
+date;time make -j4
+date;make install
+
+ln -s /usr/local/gcc-9.1.0 /usr/local/gcc
+export PATH=/usr/local/gcc/bin:$PATH
+export LD_LIBRARY_PATH=/usr/local/gcc/lib64:/usr/local/gmp/lib:/usr/local/mpfr/lib:/usr/local/mpc/lib:$LD_LIBRARY_PATH
+export MANPATH=/usr/local/gcc/share/man:$MANPATH
+gcc --version
+g++ --version
+gcc -v
+g++ -v
+
+###############################################################################
+Using username "root".
+Last login: Sun Sep 22 03:13:49 2019 from 192.168.180.1
+[root@libo ~]# gcc --version
+gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-39)
+Copyright © 2015 Free Software Foundation, Inc.
+本程序是自由软件；请参看源代码的版权声明。本软件没有任何担保；
+包括没有适销性和某一专用目的下的适用性担保。
+[root@libo ~]# g++ --version
+g++ (GCC) 4.8.5 20150623 (Red Hat 4.8.5-39)
+Copyright © 2015 Free Software Foundation, Inc.
+本程序是自由软件；请参看源代码的版权声明。本软件没有任何担保；
+包括没有适销性和某一专用目的下的适用性担保。
+[root@libo ~]# gcc -v
+使用内建 specs。
+COLLECT_GCC=gcc
+COLLECT_LTO_WRAPPER=/usr/libexec/gcc/x86_64-redhat-linux/4.8.5/lto-wrapper
+目标：x86_64-redhat-linux
+配置为：../configure --prefix=/usr --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=http://bugzilla.redhat.com/bugzilla --enable-bootstrap --enable-shared --enable-threads=posix --enable-checking=release --with-system-zlib --enable-__cxa_atexit --disable-libunwind-exceptions --enable-gnu-unique-object --enable-linker-build-id --with-linker-hash-style=gnu --enable-languages=c,c++,objc,obj-c++,java,fortran,ada,go,lto --enable-plugin --enable-initfini-array --disable-libgcj --with-isl=/builddir/build/BUILD/gcc-4.8.5-20150702/obj-x86_64-redhat-linux/isl-install --with-cloog=/builddir/build/BUILD/gcc-4.8.5-20150702/obj-x86_64-redhat-linux/cloog-install --enable-gnu-indirect-function --with-tune=generic --with-arch_32=x86-64 --build=x86_64-redhat-linux
+线程模型：posix
+gcc 版本 4.8.5 20150623 (Red Hat 4.8.5-39) (GCC)
+[root@libo ~]# g++ -v
+使用内建 specs。
+COLLECT_GCC=g++
+COLLECT_LTO_WRAPPER=/usr/libexec/gcc/x86_64-redhat-linux/4.8.5/lto-wrapper
+目标：x86_64-redhat-linux
+配置为：../configure --prefix=/usr --mandir=/usr/share/man --infodir=/usr/share/info --with-bugurl=http://bugzilla.redhat.com/bugzilla --enable-bootstrap --enable-shared --enable-threads=posix --enable-checking=release --with-system-zlib --enable-__cxa_atexit --disable-libunwind-exceptions --enable-gnu-unique-object --enable-linker-build-id --with-linker-hash-style=gnu --enable-languages=c,c++,objc,obj-c++,java,fortran,ada,go,lto --enable-plugin --enable-initfini-array --disable-libgcj --with-isl=/builddir/build/BUILD/gcc-4.8.5-20150702/obj-x86_64-redhat-linux/isl-install --with-cloog=/builddir/build/BUILD/gcc-4.8.5-20150702/obj-x86_64-redhat-linux/cloog-install --enable-gnu-indirect-function --with-tune=generic --with-arch_32=x86-64 --build=x86_64-redhat-linux
+线程模型：posix
+gcc 版本 4.8.5 20150623 (Red Hat 4.8.5-39) (GCC)
+[root@libo ~]#
+
